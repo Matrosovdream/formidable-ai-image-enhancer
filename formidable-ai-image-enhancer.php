@@ -40,7 +40,7 @@ function geminiTest() {
 
     require_once FRM_AI_BASE_URL . '/gemini-test.php';
 
-    $apiKey = 'AIzaSyAyG1o9W0EAQ8Yim0tWHJsqwSFdfoEWTxw';
+    $apiKey = '';
     $inputFilePath = __DIR__ . '/image-2.jpg';
 
     $client = new GeminiNanoBananaClient($apiKey);

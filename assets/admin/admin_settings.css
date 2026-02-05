@@ -1,0 +1,55 @@
+.fo-section {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.fo-provider {
+    border: 1px solid #eee;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.fo-provider h3 {
+    margin: 0 0 12px 0;
+}
+
+.fo-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 12px 16px;
+    align-items: center;
+    max-width: 920px;
+}
+
+.fo-grid label {
+    font-weight: 600;
+}
+
+.fo-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.fo-inline-msg {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+}
+
+.fo-inline-msg.ok {
+    background: #ecf7ed;
+    border: 1px solid #b7dfb9;
+    color: #1e6b22;
+}
+
+.fo-inline-msg.err {
+    background: #fdeeee;
+    border: 1px solid #f2b8b8;
+    color: #8a1f1f;
+}
