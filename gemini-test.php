@@ -6,12 +6,11 @@ class GeminiApiClient
      * Final images saved here (must be writable).
      * You requested this exact value.
      */
-    public const TMP_DIR = WP_CONTENT_DIR.'/uploads/tmp_gemini_ai/tmp';
+    public const TMP_DIR = WP_CONTENT_DIR . '/uploads/tmp_gemini_ai/tmp';
 
     /**
      * Pricing (USD) — approximate.
      * Input tokens follow Gemini Flash pricing; image output tokens priced higher for Flash Image.
-     * Source: Google Gemini API pricing + Flash Image announcement.
      */
     private const PRICE_INPUT_PER_1M_TOKENS_USD  = 0.30;
     private const PRICE_OUTPUT_PER_1M_TOKENS_USD = 30.00; // for image output tokens
@@ -36,6 +35,10 @@ class GeminiApiClient
      * Usage:
      *   $result = $client->processImage($inputFilePath, 'Turn this into a cyberpunk night scene...');
      *
+     * New params:
+     *   $doResize (bool) - resize to square PNG or keep original size (re-encode to PNG)
+     *   $size (int) - square size when resizing (default 600)
+     *
      * Returns:
      * [
      *   'tokens_spent' => int,
@@ -46,14 +49,21 @@ class GeminiApiClient
      *      'final_path' => string,
      *      'final_filename' => string,
      *      'final_mime' => 'image/png',
-     *      'final_width' => 600,
-     *      'final_height' => 600,
+     *      'final_width' => int,
+     *      'final_height' => int,
      *   ],
-     *   'raw_response' => array
      * ]
      */
-    public function processImage(string $inputFilePath, string $prompt): array
-    {
+    public function processImage(
+        string $inputFilePath,
+        string $prompt,
+        bool $doResize = true,
+        int $size = 600
+    ): array {
+
+        // Convert URL to local path if needed
+        $inputFilePath = str_replace(content_url(), WP_CONTENT_DIR, $inputFilePath);
+
         if (!is_file($inputFilePath) || !is_readable($inputFilePath)) {
             throw new Exception('Input file not found or not readable: ' . $inputFilePath);
         }
@@ -89,11 +99,29 @@ class GeminiApiClient
             throw new Exception('Gemini returned no image. Response: ' . json_encode($rawResponse));
         }
 
-        // Make final 600x600 PNG
-        $finalPngBinary = $this->resizeToSquarePng(base64_decode($imgB64, true), 600);
+        $modelBinary = base64_decode($imgB64, true);
+        if ($modelBinary === false || $modelBinary === '') {
+            throw new Exception('Failed to base64-decode model image.');
+        }
+
+        $finalMime = 'image/png';
+        $finalExt  = 'png';
+
+        if ($doResize) {
+            $size = max(1, (int) $size);
+            $finalPngBinary = $this->resizeToSquarePng($modelBinary, $size);
+            $finalWidth  = $size;
+            $finalHeight = $size;
+        } else {
+            // No resize: re-encode to PNG without changing dimensions (keeps alpha)
+            $re = $this->reencodeToPng($modelBinary);
+            $finalPngBinary = $re['png'];
+            $finalWidth  = $re['width'];
+            $finalHeight = $re['height'];
+        }
 
         // Save as: originalfilename_TIMESTAMP.png
-        $finalFilename = $this->makeTimestampedFilename($inputFilePath, 'png');
+        $finalFilename = $this->makeTimestampedFilename($inputFilePath, $finalExt);
         $finalPath     = $this->tmpDir . DIRECTORY_SEPARATOR . $finalFilename;
 
         if (file_put_contents($finalPath, $finalPngBinary) === false) {
@@ -111,12 +139,12 @@ class GeminiApiClient
             'approx_price_usd'  => $approxPrice,
             'usage'             => $usage,
             'data'              => [
-                'final_url'     => $finalUrl,
-                'final_path'    => $finalPath,
-                'final_filename'=> $finalFilename,
-                'final_mime'    => 'image/png',
-                'final_width'   => 600,
-                'final_height'  => 600,
+                'final_url'      => $finalUrl,
+                'final_path'     => $finalPath,
+                'final_filename' => $finalFilename,
+                'final_mime'     => $finalMime,
+                'final_width'    => (int) $finalWidth,
+                'final_height'   => (int) $finalHeight,
             ],
             //'raw_response'      => $rawResponse,
         ];
@@ -214,7 +242,6 @@ class GeminiApiClient
             ($promptTokens / 1_000_000) * self::PRICE_INPUT_PER_1M_TOKENS_USD +
             ($outputTokens  / 1_000_000) * self::PRICE_OUTPUT_PER_1M_TOKENS_USD;
 
-        // Keep a sane precision for UI
         return (float) round($cost, 6);
     }
 
@@ -231,7 +258,6 @@ class GeminiApiClient
 
     private function sanitizeFilename(string $name): string
     {
-        // Keep it filesystem + URL friendly
         $name = preg_replace('/[^a-zA-Z0-9_\-\.]+/', '_', $name) ?? $name;
         $name = trim($name, '._-');
         return $name !== '' ? $name : 'image';
@@ -282,7 +308,13 @@ class GeminiApiClient
                 $basedir = rtrim(str_replace('\\', '/', $basedir), '/');
                 $abs     = str_replace('\\', '/', $absolutePath);
 
-                if (str_starts_with($abs, $basedir . '/')) {
+                if (function_exists('str_starts_with') && str_starts_with($abs, $basedir . '/')) {
+                    $rel = substr($abs, strlen($basedir) + 1);
+                    return rtrim($baseurl, '/') . '/' . ltrim($rel, '/');
+                }
+
+                // PHP < 8 fallback
+                if (!function_exists('str_starts_with') && strpos($abs, $basedir . '/') === 0) {
                     $rel = substr($abs, strlen($basedir) + 1);
                     return rtrim($baseurl, '/') . '/' . ltrim($rel, '/');
                 }
@@ -297,7 +329,14 @@ class GeminiApiClient
             $docRoot = rtrim(str_replace('\\', '/', $docRoot), '/');
             $abs     = str_replace('\\', '/', $absolutePath);
 
-            if (str_starts_with($abs, $docRoot . '/')) {
+            if (function_exists('str_starts_with') && str_starts_with($abs, $docRoot . '/')) {
+                $rel = substr($abs, strlen($docRoot));
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                return $scheme . '://' . $host . $rel;
+            }
+
+            // PHP < 8 fallback
+            if (!function_exists('str_starts_with') && strpos($abs, $docRoot . '/') === 0) {
                 $rel = substr($abs, strlen($docRoot));
                 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                 return $scheme . '://' . $host . $rel;
@@ -308,7 +347,7 @@ class GeminiApiClient
     }
 
     /**
-     * Resize any input image binary to a 600x600 PNG (letterboxed, centered).
+     * Resize any input image binary to a NxN PNG (letterboxed, centered).
      * Requires PHP GD extension.
      */
     private function resizeToSquarePng(?string $srcBinary, int $size = 600): string
@@ -334,7 +373,7 @@ class GeminiApiClient
             throw new Exception('Invalid source image size.');
         }
 
-        // Destination canvas 600x600 with transparent background
+        // Destination canvas NxN with transparent background
         $dst = imagecreatetruecolor($size, $size);
         imagesavealpha($dst, true);
         $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
@@ -362,5 +401,47 @@ class GeminiApiClient
         }
 
         return $png;
+    }
+
+    /**
+     * Decode binary image and re-encode to PNG without resizing.
+     * Returns png bytes + original dimensions.
+     */
+    private function reencodeToPng(string $srcBinary): array
+    {
+        if ($srcBinary === '') {
+            throw new Exception('Empty image binary.');
+        }
+
+        if (!function_exists('imagecreatefromstring')) {
+            throw new Exception('GD extension is required.');
+        }
+
+        $src = @imagecreatefromstring($srcBinary);
+        if (!$src) {
+            throw new Exception('Failed to decode image binary (GD).');
+        }
+
+        $w = imagesx($src);
+        $h = imagesy($src);
+
+        // Preserve alpha
+        imagesavealpha($src, true);
+
+        ob_start();
+        imagepng($src);
+        $png = (string) ob_get_clean();
+
+        imagedestroy($src);
+
+        if ($png === '') {
+            throw new Exception('Failed to encode PNG.');
+        }
+
+        return [
+            'png'    => $png,
+            'width'  => (int) $w,
+            'height' => (int) $h,
+        ];
     }
 }
