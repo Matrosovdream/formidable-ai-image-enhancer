@@ -1,55 +1,90 @@
 .fo-section {
-    background: #fff;
-    border: 1px solid #e5e5e5;
-    padding: 20px;
-    margin-top: 20px;
+  margin-top: 16px;
 }
 
 .fo-provider {
-    border: 1px solid #eee;
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 16px;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
 }
 
 .fo-provider h3 {
-    margin: 0 0 12px 0;
+  margin: 0 0 10px 0;
 }
 
 .fo-grid {
-    display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 12px 16px;
-    align-items: center;
-    max-width: 920px;
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 10px 14px;
+  align-items: start;
 }
 
 .fo-grid label {
-    font-weight: 600;
+  font-weight: 600;
+  padding-top: 6px;
 }
 
-.fo-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 12px;
+/* Enhancer prompts */
+.fo-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
 }
 
-.fo-inline-msg {
-    display: inline-block;
-    padding: 6px 10px;
-    border-radius: 999px;
-    font-size: 12px;
+.fo-prompt-row {
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 44px 10px 10px; /* right padding for the X button */
+  background: #fafafa;
 }
 
-.fo-inline-msg.ok {
-    background: #ecf7ed;
-    border: 1px solid #b7dfb9;
-    color: #1e6b22;
+.fo-prompt-title-label,
+.fo-prompt-text-label {
+  display: block;
+  font-weight: 600;
+  margin: 0 0 6px 0;
 }
 
-.fo-inline-msg.err {
-    background: #fdeeee;
-    border: 1px solid #f2b8b8;
-    color: #8a1f1f;
+.fo-prompt-title {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 0 10px 0;
+}
+
+.fo-prompt-text {
+  margin: 0;
+}
+
+.fo-prompt-selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+/* X button bottom-right */
+.fo-prompt-remove {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 26px;
+  text-align: center;
+  color: #111;
+}
+
+.fo-prompt-remove:hover {
+  background: #f3f4f6;
 }
