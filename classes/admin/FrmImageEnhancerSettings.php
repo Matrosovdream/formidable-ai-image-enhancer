@@ -1,42 +1,21 @@
 <?php
 if ( ! defined('ABSPATH') ) { exit; }
 
-final class FrmImageEnhancerSettings {
-
-    /**
-     * Parent slug updated per your request
-     * Child for Formidable menu.
-     */
+final class FrmImageEnhancerSettings
+{
     private const PARENT_SLUG = 'formidable';
-
-    /** Page slug for this settings page */
     private const PAGE_SLUG   = 'frm-image-enhancer-settings';
-
-    /** Option name to store all settings */
-    private const OPTION_NAME = 'frm_image_enhancer_settings';
-
-    /** Nonce actions */
     private const NONCE_SAVE  = 'frm_image_enhancer_save_settings';
-    private const NONCE_AJAX  = 'frm_image_enhancer_ajax';
 
-    /**
-     * Providers mapping
-     * code => ['title' => '...']
-     */
-    private const API_PROVIDERS = [
-        'nanobanano' => [ 'title' => 'Nano Banano' ],
-    ];
-
-    public static function init(): void {
+    public static function init(): void
+    {
         add_action('admin_menu', [__CLASS__, 'register_menu'], 20);
         add_action('admin_init', [__CLASS__, 'maybe_handle_save']);
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_assets']);
-
-        // AJAX: verify provider
-        add_action('wp_ajax_frm_image_enhancer_verify_provider', [__CLASS__, 'ajax_verify_provider']);
     }
 
-    public static function register_menu(): void {
+    public static function register_menu(): void
+    {
         add_submenu_page(
             self::PARENT_SLUG,
             'AI image enhancer',
@@ -47,119 +26,108 @@ final class FrmImageEnhancerSettings {
         );
     }
 
-    public static function enqueue_assets(string $hook): void {
-        // Only load on our page
+    public static function enqueue_assets(string $hook): void
+    {
         $page = isset($_GET['page']) ? sanitize_key((string) $_GET['page']) : '';
-        if ($page !== self::PAGE_SLUG) {
-            return;
-        }
+        if ($page !== self::PAGE_SLUG) return;
 
-        // Ensure your constants exist (you said they already do)
-        if ( ! defined('FRM_AI_BASE_PATH') || ! defined('FRM_AI_BASE_URL') ) {
-            return;
-        }
-
-        $css_rel = 'assets/admin/admin_settings.css';
-        $js_rel  = 'assets/admin/admin_settings.js';
-
-        $css_url  = rtrim((string) FRM_AI_BASE_PATH, '/') . '/' . $css_rel;
-        $js_url   = rtrim((string) FRM_AI_BASE_PATH, '/') . '/' . $js_rel;
-
-        $css_path = rtrim((string) FRM_AI_BASE_URL, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $css_rel);
-        $js_path  = rtrim((string) FRM_AI_BASE_URL, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $js_rel);
-
-        $css_ver = file_exists($css_path) ? (string) filemtime($css_path) : '1.0.0';
-        $js_ver  = file_exists($js_path)  ? (string) filemtime($js_path)  : '1.0.0';
+        if ( ! defined('FRM_AI_BASE_PATH') ) return;
 
         wp_enqueue_style(
             'frm-ai-admin-settings',
-            $css_url,
-            [],
-            $css_ver
+            FRM_AI_BASE_PATH . 'assets/admin/admin_settings.css?time=' . time()
         );
 
         wp_enqueue_script(
             'frm-ai-admin-settings',
-            $js_url,
+            FRM_AI_BASE_PATH . 'assets/admin/admin_settings.js?time=' . time(),
             ['jquery'],
-            $js_ver,
+            null,
             true
         );
 
-        // Pass ajax config to JS
+        // model descriptions for UI
+        $apis = FrmAiSettingsHelper::getApis();
+        $modelDescriptions = [];
+        foreach ($apis as $apiKey => $apiMeta) {
+            $modelDescriptions[(string)$apiKey] = FrmAiSettingsHelper::getModelDescriptions((string)$apiKey);
+        }
+
         wp_localize_script('frm-ai-admin-settings', 'FRM_IMAGE_ENHANCER', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce(self::NONCE_AJAX),
+            'model_descriptions' => $modelDescriptions,
         ]);
     }
 
-    private static function get_current_tab(): string {
-        $tab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'api-connection';
-        return $tab ?: 'api-connection';
-    }
-
-    private static function get_tabs(): array {
+    private static function get_tabs(): array
+    {
         return [
             'api-connection' => 'API connection',
+            'enhancer'       => 'Enhancer',
         ];
     }
 
-    private static function get_settings(): array {
-        $saved = get_option(self::OPTION_NAME, []);
-        return is_array($saved) ? $saved : [];
+    /** Tab must survive reload + POST save */
+    private static function get_current_tab(): string
+    {
+        $tabs = self::get_tabs();
+
+        $postTab = isset($_POST['frm_ai_tab']) ? sanitize_key((string) $_POST['frm_ai_tab']) : '';
+        if ($postTab !== '' && isset($tabs[$postTab])) {
+            return $postTab;
+        }
+
+        $tab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'api-connection';
+        if ($tab === '' || !isset($tabs[$tab])) {
+            $tab = 'api-connection';
+        }
+
+        return $tab;
     }
 
-    private static function get_provider_settings(array $all, string $code): array {
-        $row = isset($all[$code]) && is_array($all[$code]) ? $all[$code] : [];
-        return [
-            'api_key' => isset($row['api_key']) ? (string) $row['api_key'] : '',
-            'api_url' => isset($row['api_url']) ? (string) $row['api_url'] : '',
-            'mode'    => isset($row['mode']) ? (string) $row['mode'] : 'production',
-        ];
-    }
-
-    public static function maybe_handle_save(): void {
+    public static function maybe_handle_save(): void
+    {
         $page = isset($_GET['page']) ? sanitize_key((string) $_GET['page']) : '';
-        if ($page !== self::PAGE_SLUG) {
-            return;
-        }
+        if ($page !== self::PAGE_SLUG) return;
 
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-            return;
-        }
-
-        if ( ! current_user_can('manage_options') ) {
-            return;
-        }
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') return;
+        if ( ! current_user_can('manage_options') ) return;
 
         if ( ! isset($_POST['_wpnonce']) || ! wp_verify_nonce((string) $_POST['_wpnonce'], self::NONCE_SAVE) ) {
             return;
         }
 
-        $incoming = isset($_POST['providers']) && is_array($_POST['providers']) ? $_POST['providers'] : [];
+        $tab = self::get_current_tab();
 
-        $new = [];
-        foreach (self::API_PROVIDERS as $code => $meta) {
-            $row = isset($incoming[$code]) && is_array($incoming[$code]) ? $incoming[$code] : [];
+        // Load existing saved settings first (so we can merge)
+        $saved = FrmAiSettingsHelper::getSettings();
 
-            $api_key = isset($row['api_key']) ? sanitize_text_field((string) $row['api_key']) : '';
-            $api_url = isset($row['api_url']) ? esc_url_raw((string) $row['api_url']) : '';
+        // Normalize base structure
+        if (!is_array($saved)) { $saved = []; }
+        if (!isset($saved['providers']) || !is_array($saved['providers'])) { $saved['providers'] = []; }
+        if (!isset($saved['enhancer'])  || !is_array($saved['enhancer']))  { $saved['enhancer']  = []; }
 
-            $mode = isset($row['mode']) ? sanitize_key((string) $row['mode']) : 'production';
-            if ( ! in_array($mode, ['production', 'development'], true) ) {
-                $mode = 'production';
-            }
+        // Update only what was submitted / current tab
+        if ($tab === 'api-connection') {
 
-            $new[$code] = [
-                'api_key' => $api_key,
-                'api_url' => $api_url,
-                'mode'    => $mode,
-            ];
+            $incomingProviders = isset($_POST['providers']) && is_array($_POST['providers']) ? $_POST['providers'] : [];
+            $providersNew = FrmAiSettingsHelper::sanitizeIncomingProviders($incomingProviders);
+
+            $saved['providers'] = $providersNew;
+
+        } elseif ($tab === 'enhancer') {
+
+            $incomingEnhancer = isset($_POST['enhancer']) && is_array($_POST['enhancer']) ? $_POST['enhancer'] : [];
+            $enhancerNew = FrmAiSettingsHelper::sanitizeIncomingEnhancer($incomingEnhancer);
+
+            // merge enhancer section (so later можно расширять enhancer ещё полями)
+            $saved['enhancer'] = array_merge($saved['enhancer'], $enhancerNew);
+
+        } else {
+            // Unknown tab - do nothing
         }
 
-        update_option(self::OPTION_NAME, $new, false);
+        update_option(FrmAiSettingsHelper::OPTION_NAME, $saved, false);
 
-        $tab = self::get_current_tab();
         $url = add_query_arg(
             [
                 'page'    => self::PAGE_SLUG,
@@ -168,30 +136,30 @@ final class FrmImageEnhancerSettings {
             ],
             admin_url('admin.php')
         );
+
         wp_safe_redirect($url);
         exit;
     }
 
-    public static function render_page(): void {
+    public static function render_page(): void
+    {
         if ( ! current_user_can('manage_options') ) {
             wp_die('Sorry, you are not allowed to access this page.');
         }
 
         $tab      = self::get_current_tab();
         $tabs     = self::get_tabs();
-        $settings = self::get_settings();
+        $settings = FrmAiSettingsHelper::getSettings();
+        $apis     = FrmAiSettingsHelper::getApis();
 
         echo '<div class="wrap">';
         echo '<h1>AI image enhancer</h1>';
 
-        // Tabs (reload page)
+        // Tabs (reload)
         echo '<h2 class="nav-tab-wrapper">';
         foreach ($tabs as $key => $label) {
             $active = ($key === $tab) ? ' nav-tab-active' : '';
-            $href = add_query_arg(
-                ['page' => self::PAGE_SLUG, 'tab' => $key],
-                admin_url('admin.php')
-            );
+            $href = add_query_arg(['page' => self::PAGE_SLUG, 'tab' => $key], admin_url('admin.php'));
             echo '<a href="' . esc_url($href) . '" class="nav-tab' . esc_attr($active) . '">' . esc_html($label) . '</a>';
         }
         echo '</h2>';
@@ -201,69 +169,135 @@ final class FrmImageEnhancerSettings {
         }
 
         echo '<div class="fo-section">';
+        echo '<form method="post" action="">';
+        wp_nonce_field(self::NONCE_SAVE);
+        echo '<input type="hidden" name="frm_ai_tab" value="' . esc_attr($tab) . '">';
 
+        // -------------------------
+        // TAB: API connection
+        // -------------------------
         if ($tab === 'api-connection') {
-            echo '<form method="post" action="">';
-            wp_nonce_field(self::NONCE_SAVE);
 
-            foreach (self::API_PROVIDERS as $code => $meta) {
-                $title = isset($meta['title']) ? (string) $meta['title'] : $code;
-                $row   = self::get_provider_settings($settings, $code);
+            if (empty($apis)) {
+                echo '<p>No providers found. Define <code>FRM_AI_APIS</code> first.</p>';
+            } else {
 
-                echo '<div class="fo-provider">';
-                echo '<h3>' . esc_html($title) . ' <span style="opacity:.6;font-weight:400;">(' . esc_html($code) . ')</span></h3>';
+                foreach ($apis as $apiKey => $apiMeta) {
+                    $apiKey = (string) $apiKey;
 
-                echo '<div class="fo-grid">';
+                    $provider = FrmAiSettingsHelper::getApiProviderByKey($apiKey);
+                    if (!$provider) continue;
 
-                echo '<label for="fo_api_key_' . esc_attr($code) . '">API key</label>';
-                echo '<input type="text" class="regular-text" id="fo_api_key_' . esc_attr($code) . '" name="providers[' . esc_attr($code) . '][api_key]" value="' . esc_attr($row['api_key']) . '" />';
+                    $title = (string) $provider['name'];
+                    $row   = FrmAiSettingsHelper::getProviderSettings($settings, $apiKey);
 
-                echo '<label for="fo_api_url_' . esc_attr($code) . '">API url</label>';
-                echo '<input type="url" class="regular-text" id="fo_api_url_' . esc_attr($code) . '" name="providers[' . esc_attr($code) . '][api_url]" value="' . esc_attr($row['api_url']) . '" placeholder="https://..." />';
+                    $options = FrmAiSettingsHelper::getModelSelectOptions($apiKey, null);
+                    $defaultModel = FrmAiSettingsHelper::getDefaultModel($apiKey);
+                    $selectedModel = $row['model'] !== '' ? $row['model'] : $defaultModel;
 
-                echo '<label for="fo_mode_' . esc_attr($code) . '">Mode</label>';
-                echo '<select id="fo_mode_' . esc_attr($code) . '" name="providers[' . esc_attr($code) . '][mode]">';
-                echo '<option value="production"' . selected($row['mode'], 'production', false) . '>production</option>';
-                echo '<option value="development"' . selected($row['mode'], 'development', false) . '>development</option>';
-                echo '</select>';
+                    echo '<div class="fo-provider">';
+                    echo '<h3>' . esc_html($title) . ' <span style="opacity:.6;font-weight:400;">(' . esc_html($apiKey) . ')</span></h3>';
 
-                echo '</div>'; // .fo-grid
+                    echo '<div class="fo-grid">';
 
-                echo '<div class="fo-actions">';
-                echo '<button type="button" class="button fo-verify-btn" data-provider="' . esc_attr($code) . '">Verify</button>';
-                echo '<span class="fo-inline-msg fo-verify-msg ok" style="display:none;"></span>';
-                echo '</div>';
+                    echo '<label for="fo_api_key_' . esc_attr($apiKey) . '">API key</label>';
+                    echo '<input type="text" class="regular-text" id="fo_api_key_' . esc_attr($apiKey) . '" name="providers[' . esc_attr($apiKey) . '][api_key]" value="' . esc_attr($row['api_key']) . '" />';
 
-                echo '</div>'; // .fo-provider
+                    echo '<label for="fo_model_' . esc_attr($apiKey) . '">Model</label>';
+                    echo '<div>';
+                    echo '<select class="fo-model-select" id="fo_model_' . esc_attr($apiKey) . '" name="providers[' . esc_attr($apiKey) . '][model]" data-api="' . esc_attr($apiKey) . '">';
+                    echo '<option value="">— Select model —</option>';
+
+                    foreach ($options as $modelKey => $modelTitle) {
+                        echo '<option value="' . esc_attr($modelKey) . '"' . selected($selectedModel, $modelKey, false) . '>'
+                            . esc_html($modelTitle)
+                            . ' (' . esc_html($modelKey) . ')'
+                            . '</option>';
+                    }
+
+                    echo '</select>';
+                    echo '<p class="description fo-model-desc" style="margin:6px 0 0;"></p>';
+                    echo '</div>';
+
+                    echo '</div>'; // grid
+                    echo '</div>'; // provider
+                }
             }
 
             submit_button('Save settings');
-            echo '</form>';
-        } else {
+        }
+
+        // -------------------------
+        // TAB: Enhancer
+        // -------------------------
+        elseif ($tab === 'enhancer') {
+
+            $existing = [];
+            if (isset($settings['enhancer']['default_prompts']) && is_array($settings['enhancer']['default_prompts'])) {
+                $existing = $settings['enhancer']['default_prompts'];
+            }
+
+            if (empty($existing)) {
+                $existing[] = ['title' => '', 'text' => '', 'selected' => 0];
+            }
+
+            echo '<div class="fo-provider">';
+            echo '<h3>Default prompts</h3>';
+            echo '<p class="description" style="margin-top:6px;">Each row has <b>Title</b>, long <b>Text</b>, and paired <b>Selected</b>.</p>';
+
+            echo '<div class="fo-prompts" id="foDefaultPrompts">';
+
+            foreach ($existing as $r) {
+                $title = isset($r['title']) ? (string) $r['title'] : '';
+                $text  = isset($r['text']) ? (string) $r['text'] : '';
+                $sel   = !empty($r['selected']);
+
+                echo '<div class="fo-prompt-row">';
+
+                echo '<label class="fo-prompt-title-label">Title</label>';
+                echo '<input type="text" class="regular-text fo-prompt-title" '
+                    . 'name="enhancer[default_prompts_title][]" '
+                    . 'placeholder="Prompt title..." '
+                    . 'value="' . esc_attr($title) . '">';
+
+                echo '<label class="fo-prompt-text-label">Text</label>';
+                echo '<textarea class="large-text fo-prompt-text" rows="4" '
+                    . 'name="enhancer[default_prompts_text][]" '
+                    . 'placeholder="Enter prompt...">'
+                    . esc_textarea($text)
+                    . '</textarea>';
+
+                // Hidden stores 0/1 and is posted always
+                echo '<input type="hidden" name="enhancer[default_prompts_selected][]" value="' . esc_attr($sel ? '1' : '0') . '">';
+
+                echo '<label class="fo-prompt-selected">';
+                echo '<input type="checkbox" class="fo-prompt-check" value="1"' . checked($sel, true, false) . '> Selected';
+                echo '</label>';
+
+                // X remove button bottom-right
+                echo '<button type="button" class="fo-prompt-remove" aria-label="Remove prompt" title="Remove">×</button>';
+
+                echo '</div>';
+            }
+
+            echo '</div>'; // foDefaultPrompts
+
+            echo '<p style="margin:10px 0 0;">';
+            echo '<button type="button" class="button" id="foPromptAdd">Add prompt</button>';
+            echo '</p>';
+
+            echo '</div>'; // provider
+
+            submit_button('Save settings');
+        }
+
+        else {
             echo '<p>Tab not found.</p>';
         }
 
-        echo '</div>'; // .fo-section
-        echo '</div>'; // .wrap
-    }
-
-    public static function ajax_verify_provider(): void {
-        if ( ! current_user_can('manage_options') ) {
-            wp_send_json_error(['ok' => false, 'message' => 'forbidden'], 403);
-        }
-
-        $nonce = isset($_POST['nonce']) ? (string) $_POST['nonce'] : '';
-        if ( ! wp_verify_nonce($nonce, self::NONCE_AJAX) ) {
-            wp_send_json_error(['ok' => false, 'message' => 'bad_nonce'], 403);
-        }
-
-        $provider = isset($_POST['provider']) ? sanitize_key((string) $_POST['provider']) : '';
-        if ($provider === '' || ! array_key_exists($provider, self::API_PROVIDERS)) {
-            wp_send_json_error(['ok' => false, 'message' => 'unknown_provider'], 400);
-        }
-
-        // Return ok by default (per your request)
-        wp_send_json_success(['ok' => true]);
+        echo '</form>';
+        echo '</div>'; // section
+        echo '</div>'; // wrap
     }
 }
 
