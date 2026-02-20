@@ -3,16 +3,18 @@ class FrmImageEnhancerInit {
 
     public function __construct() {
 
+        // Admin
         $this->include_admin();
+
+        // API class
+        $this->include_api();
 
         // Helpers
         $this->include_helpers();
 
 
-        // API class
+        
         /*
-        $this->include_api();
-
         // Shortcodes
         $this->include_shortcodes();
 
@@ -71,17 +73,8 @@ class FrmImageEnhancerInit {
 
     private function include_api() {
 
-        // Abstract API
-        require_once FRM_AI_BASE_URL.'/classes/api/FrmEasypostAbstractApi.php';
-
-        // Shipment API
-        require_once FRM_AI_BASE_URL.'/classes/api/FrmEasypostShipmentApi.php';
-
-        // Address API
-        require_once FRM_AI_BASE_URL.'/classes/api/FrmEasypostAddressApi.php';
-
-        // Smarty API
-        require_once FRM_AI_BASE_URL.'/classes/api/Smarty/FrmSmartyApi.php';
+        // Gemini API client
+        require_once FRM_AI_BASE_URL.'/classes/api/GeminiApiClient.php';
 
     }
 
@@ -119,8 +112,9 @@ class FrmImageEnhancerInit {
 
     private function include_helpers() {
 
-        // Shipment Helper
         require_once FRM_AI_BASE_URL.'/classes/helpers/FrmAiEntryHelper.php';
+        require_once FRM_AI_BASE_URL.'/classes/helpers/FrmAiImageHelper.php';
+        require_once FRM_AI_BASE_URL.'/classes/helpers/FrmAiSettingsHelper.php';
 
     }
 
