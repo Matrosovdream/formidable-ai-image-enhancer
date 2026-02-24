@@ -171,9 +171,9 @@ final class FrmAiSettingsHelper
     }
 
     /**
-     * ✅ getDefaultPrompts(): returns pairs title + text + selected
+     * ✅ getDefaultPrompts(): returns pairs title + text + selected + on_create
      * [
-     *   ['title' => '...', 'text' => '...', 'selected' => true],
+     *   ['title' => '...', 'text' => '...', 'selected' => true, 'on_create' => true],
      * ]
      */
     public static function getDefaultPrompts(?array $settings = null): array
@@ -195,9 +195,10 @@ final class FrmAiSettingsHelper
             if ($title === '' && $text === '') { continue; }
 
             $out[] = [
-                'title'    => $title,
-                'text'     => $text,
-                'selected' => !empty($r['selected']),
+                'title'     => $title,
+                'text'      => $text,
+                'selected'  => !empty($r['selected']),
+                'on_create' => !empty($r['on_create']),
             ];
         }
 
@@ -205,33 +206,69 @@ final class FrmAiSettingsHelper
     }
 
     /**
-     * ✅ Sanitizes enhancer prompts from three arrays:
+     * ✅ Default prompts for onCreate Entry.
+     * Returns only prompts with on_create = true.
+     */
+    public static function getDefaultOnCreatePrompts(?array $settings = null): array
+    {
+        $all = is_array($settings) ? $settings : self::getSettings();
+        $rows = self::getDefaultPrompts($all);
+
+        $out = [];
+        foreach ($rows as $r) {
+            if (!is_array($r)) { continue; }
+            if (empty($r['on_create'])) { continue; }
+            $out[] = $r;
+        }
+
+        return $out;
+    }
+
+    /**
+     * ✅ Convenience: returns single combined prompt text for onCreate (joined by blank line).
+     */
+    public static function getDefaultOnCreatePromptText(?array $settings = null): string
+    {
+        $rows = self::getDefaultOnCreatePrompts($settings);
+
+        $parts = [];
+        foreach ($rows as $r) {
+            $t = isset($r['text']) ? trim((string)$r['text']) : '';
+            if ($t !== '') $parts[] = $t;
+        }
+
+        return implode("\n\n", $parts);
+    }
+
+    /**
+     * ✅ Sanitizes enhancer prompts from four arrays:
      * enhancer[default_prompts_title][]
      * enhancer[default_prompts_text][]
      * enhancer[default_prompts_selected][]
+     * enhancer[default_prompts_oncreate][]
      */
     public static function sanitizeIncomingEnhancer(array $incomingEnhancer): array
     {
         $titles = $incomingEnhancer['default_prompts_title'] ?? [];
         $texts  = $incomingEnhancer['default_prompts_text'] ?? [];
         $sels   = $incomingEnhancer['default_prompts_selected'] ?? [];
+        $oncs   = $incomingEnhancer['default_prompts_oncreate'] ?? [];
 
         if (!is_array($titles)) { $titles = []; }
         if (!is_array($texts))  { $texts  = []; }
         if (!is_array($sels))   { $sels   = []; }
+        if (!is_array($oncs))   { $oncs   = []; }
 
         $rows = [];
-        $max = max(count($titles), count($texts), count($sels));
+        $max = max(count($titles), count($texts), count($sels), count($oncs));
 
         for ($i = 0; $i < $max; $i++) {
             $title = isset($titles[$i]) ? (string) $titles[$i] : '';
             $text  = isset($texts[$i])  ? (string) $texts[$i]  : '';
 
-            $title = isset($titles[$i]) ? (string) $titles[$i] : '';
             $title = wp_unslash($title);
             $title = trim(sanitize_text_field($title));
 
-            $text = isset($texts[$i]) ? (string) $texts[$i] : '';
             $text = wp_unslash($text);
             $text = trim(wp_kses_post($text));
 
@@ -239,11 +276,13 @@ final class FrmAiSettingsHelper
             if ($title === '' && $text === '') { continue; }
 
             $selected = !empty($sels[$i]) && (string)$sels[$i] !== '0';
+            $onCreate = !empty($oncs[$i]) && (string)$oncs[$i] !== '0';
 
             $rows[] = [
-                'title'    => $title,
-                'text'     => $text,
-                'selected' => $selected ? 1 : 0,
+                'title'     => $title,
+                'text'      => $text,
+                'selected'  => $selected ? 1 : 0,
+                'on_create' => $onCreate ? 1 : 0,
             ];
         }
 

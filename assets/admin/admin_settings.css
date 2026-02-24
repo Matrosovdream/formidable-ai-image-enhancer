@@ -59,12 +59,29 @@
   margin: 0;
 }
 
-.fo-prompt-selected {
+/* Checkboxes row */
+.fo-prompt-selected,
+.fo-prompt-oncreate {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
+  margin-right: 14px;
   font-weight: 600;
+  user-select: none;
+}
+
+/* Keep checkboxes aligned and not "jumping" */
+.fo-prompt-selected input[type="checkbox"],
+.fo-prompt-oncreate input[type="checkbox"] {
+  margin: 0;
+  transform: translateY(1px);
+}
+
+/* Make both checkboxes sit nicely even if line wraps */
+.fo-prompt-row .fo-prompt-selected,
+.fo-prompt-row .fo-prompt-oncreate {
+  vertical-align: middle;
 }
 
 /* X button bottom-right */

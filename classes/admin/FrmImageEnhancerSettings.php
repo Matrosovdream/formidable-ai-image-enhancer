@@ -238,19 +238,20 @@ final class FrmImageEnhancerSettings
             }
 
             if (empty($existing)) {
-                $existing[] = ['title' => '', 'text' => '', 'selected' => 0];
+                $existing[] = ['title' => '', 'text' => '', 'selected' => 0, 'on_create' => 0];
             }
 
             echo '<div class="fo-provider">';
             echo '<h3>Default prompts</h3>';
-            echo '<p class="description" style="margin-top:6px;">Each row has <b>Title</b>, long <b>Text</b>, and paired <b>Selected</b>.</p>';
+            echo '<p class="description" style="margin-top:6px;">Each row has <b>Title</b>, long <b>Text</b>, and paired <b>Selected</b> + <b>Default onCreate Entry</b>.</p>';
 
             echo '<div class="fo-prompts" id="foDefaultPrompts">';
 
             foreach ($existing as $r) {
-                $title = isset($r['title']) ? (string) $r['title'] : '';
-                $text  = isset($r['text']) ? (string) $r['text'] : '';
-                $sel   = !empty($r['selected']);
+                $title    = isset($r['title']) ? (string) $r['title'] : '';
+                $text     = isset($r['text']) ? (string) $r['text'] : '';
+                $sel      = !empty($r['selected']);
+                $onCreate = !empty($r['on_create']);
 
                 echo '<div class="fo-prompt-row">';
 
@@ -267,11 +268,18 @@ final class FrmImageEnhancerSettings
                     . esc_textarea($text)
                     . '</textarea>';
 
-                // Hidden stores 0/1 and is posted always
+                // Hidden stores 0/1 and is posted always (Selected)
                 echo '<input type="hidden" name="enhancer[default_prompts_selected][]" value="' . esc_attr($sel ? '1' : '0') . '">';
 
                 echo '<label class="fo-prompt-selected">';
                 echo '<input type="checkbox" class="fo-prompt-check" value="1"' . checked($sel, true, false) . '> Selected';
+                echo '</label>';
+
+                // NEW: Default onCreate Entry
+                echo '<input type="hidden" name="enhancer[default_prompts_oncreate][]" value="' . esc_attr($onCreate ? '1' : '0') . '">';
+
+                echo '<label class="fo-prompt-oncreate">';
+                echo '<input type="checkbox" class="fo-prompt-oncreate-check" value="1"' . checked($onCreate, true, false) . '> Default onCreate Entry';
                 echo '</label>';
 
                 // X remove button bottom-right

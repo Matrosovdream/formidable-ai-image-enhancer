@@ -36,7 +36,7 @@ jQuery(function ($) {
 
 
   // -----------------------------
-  // Enhancer: Default prompts add/remove + sync Selected
+  // Enhancer: Default prompts add/remove + sync Selected + sync onCreate
   // -----------------------------
   function syncRowSelected($row) {
     var $chk = $row.find(".fo-prompt-check");
@@ -45,13 +45,25 @@ jQuery(function ($) {
     $hidden.val($chk[0].checked ? "1" : "0");
   }
 
+  function syncRowOnCreate($row) {
+    var $chk = $row.find(".fo-prompt-oncreate-check");
+    var $hidden = $row.find('input[type="hidden"][name="enhancer[default_prompts_oncreate][]"]');
+    if (!$chk.length || !$hidden.length) return;
+    $hidden.val($chk[0].checked ? "1" : "0");
+  }
+
   // init existing rows
   $("#foDefaultPrompts .fo-prompt-row").each(function () {
     syncRowSelected($(this));
+    syncRowOnCreate($(this));
   });
 
   $(document).on("change", ".fo-prompt-check", function () {
     syncRowSelected($(this).closest(".fo-prompt-row"));
+  });
+
+  $(document).on("change", ".fo-prompt-oncreate-check", function () {
+    syncRowOnCreate($(this).closest(".fo-prompt-row"));
   });
 
   $(document).on("click", "#foPromptAdd", function () {
@@ -65,9 +77,13 @@ jQuery(function ($) {
         '<textarea class="large-text fo-prompt-text" rows="4" name="enhancer[default_prompts_text][]" placeholder="Enter prompt..."></textarea>' +
 
         '<input type="hidden" name="enhancer[default_prompts_selected][]" value="1">' +
-
         '<label class="fo-prompt-selected">' +
-          '<input type="checkbox" class="fo-prompt-check" value="1" checked> Selected' +
+          '<input type="checkbox" class="fo-prompt-check" value="1"> Selected' +
+        '</label>' +
+
+        '<input type="hidden" name="enhancer[default_prompts_oncreate][]" value="1">' +
+        '<label class="fo-prompt-oncreate">' +
+          '<input type="checkbox" class="fo-prompt-oncreate-check" value="1"> Default onCreate Entry' +
         '</label>' +
 
         '<button type="button" class="fo-prompt-remove" aria-label="Remove prompt" title="Remove">×</button>' +
