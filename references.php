@@ -13,6 +13,12 @@ const FRM_AI_APIS = [
              |--------------------------------------------------------------------------
              */
 
+            'gemini-3.1-pro-preview' => [
+                'title'       => 'Gemini 3.1 Pro Image (Preview)',
+                'type'        => 'image',
+                'description' => 'Latest preview version of Gemini 3.1 Pro Image model. State-of-the-art image generation and editing with enhanced realism, detail, and new capabilities.',
+            ],
+
             'gemini-3-pro-image-preview' => [
                 'title'       => 'Gemini 3 Pro Image (Preview)',
                 'type'        => 'image',
