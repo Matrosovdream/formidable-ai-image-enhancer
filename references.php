@@ -1,5 +1,11 @@
 <?php
 
+define('FRM_AI_TIMEOUTS', [
+    'gemini' => [
+        'default' => 90, // 90 seconds default timeout for Gemini API calls
+    ]
+]);
+
 const FRM_AI_APIS = [
 
     'gemini' => [

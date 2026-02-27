@@ -192,7 +192,7 @@ class GeminiApiClient
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_TIMEOUT        => FRM_AI_TIMEOUTS['gemini']['default'] ?? 60, // From references.php
         ]);
 
         $raw = curl_exec($ch);
